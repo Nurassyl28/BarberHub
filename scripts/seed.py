@@ -24,6 +24,7 @@ from app.models import (
     Barbershop,
     Review,
     Service,
+    ShopClosure,
     User,
     UserRole,
     WorkingHours,
@@ -137,6 +138,19 @@ async def seed() -> None:
                     )
         await db.flush()
 
+        # A two-day new-year closure, far enough out that it never collides
+        # with the generated history.
+        closure_start = (datetime.now(UTC) + timedelta(days=40)).date()
+        db.add(
+            ShopClosure(
+                shop_id=shop.id,
+                start_date=closure_start,
+                end_date=closure_start + timedelta(days=1),
+                reason="Annual maintenance",
+            )
+        )
+        await db.flush()
+
         appointments = await _history(db, barbers, services, customers)
         await _reviews(db, appointments, barbers)
         await db.commit()
@@ -178,6 +192,7 @@ async def _clear_previous(db: AsyncSession) -> None:
             )
             await db.execute(delete(WorkingHours).where(WorkingHours.barber_id.in_(barber_ids)))
             await db.execute(delete(Barber).where(Barber.shop_id == shop.id))
+        await db.execute(delete(ShopClosure).where(ShopClosure.shop_id == shop.id))
         await db.execute(delete(Service).where(Service.shop_id == shop.id))
         await db.execute(delete(Barbershop).where(Barbershop.id == shop.id))
     await db.execute(delete(User).where(User.email.in_(emails)))

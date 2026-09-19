@@ -38,6 +38,7 @@ class BarbershopBase(BaseModel):
     longitude: Longitude | None = None
     phone: str | None = Field(default=None, max_length=32)
     timezone: str = Field(default=settings.DEFAULT_TIMEZONE, max_length=64)
+    requires_confirmation: bool = False
 
     _check_timezone = field_validator("timezone")(_validate_timezone)
 
@@ -56,6 +57,7 @@ class BarbershopUpdate(BaseModel):
     phone: str | None = Field(default=None, max_length=32)
     timezone: str | None = Field(default=None, max_length=64)
     is_active: bool | None = None
+    requires_confirmation: bool | None = None
 
     @field_validator("timezone")
     @classmethod
@@ -75,6 +77,7 @@ class BarbershopRead(ORMModel):
     phone: str | None
     timezone: str
     is_active: bool
+    requires_confirmation: bool = False
     created_at: datetime
     #: Mean rating across the shop's *rated* barbers — barbers with no reviews
     #: are excluded rather than counted as zero.

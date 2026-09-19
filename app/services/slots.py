@@ -23,6 +23,7 @@ from app.models import (
     BarberBreak,
     Barbershop,
     Service,
+    ShopClosure,
     WorkingHours,
 )
 from app.schemas.availability import AvailabilityRead, ServiceSummary, SlotRead
@@ -64,8 +65,13 @@ async def available_slots(
     tz = shop_timezone(shop)
 
     window = local_day_bounds(day, tz)
-    shifts = await _shifts_for(db, barber_id, day, tz)
 
+    # A shop-wide closure short-circuits everything: no working hours matter on
+    # a day the doors are shut.
+    if await _is_closed(db, shop.id, day):
+        return _render(day, tz, barber_id, service, [])
+
+    shifts = await _shifts_for(db, barber_id, day, tz)
     if not shifts:
         return _render(day, tz, barber_id, service, [])
 
@@ -159,6 +165,19 @@ async def _appointments(
         stmt = stmt.where(Appointment.id != exclude)
     rows = (await db.execute(stmt)).tuples().all()
     return [Interval(start, end) for start, end in rows]
+
+
+async def _is_closed(db: AsyncSession, shop_id: uuid.UUID, day: date_type) -> bool:
+    found = (
+        await db.execute(
+            select(ShopClosure.id).where(
+                ShopClosure.shop_id == shop_id,
+                ShopClosure.start_date <= day,
+                ShopClosure.end_date >= day,
+            )
+        )
+    ).first()
+    return found is not None
 
 
 async def _breaks(db: AsyncSession, barber_id: uuid.UUID, window: Interval) -> list[Interval]:

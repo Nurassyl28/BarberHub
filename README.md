@@ -94,6 +94,14 @@ availability endpoint serves. Grid alignment, lead time, breaks, working hours
 and the barber's service assignments are all enforced by construction rather
 than re-derived.
 
+### Two kinds of "closed"
+
+A `barber_break` blocks one person's time — lunch, a dentist appointment, a
+week off. A `shop_closure` shuts the whole shop for a range of local calendar
+days. Expressing a public holiday as one break per barber would mean N rows
+that can drift apart; remove one and the shop is half-open on New Year's Day.
+Neither can be created over appointments customers already hold.
+
 ### Times
 
 Stored as `TIMESTAMPTZ` in UTC. Working hours are wall-clock and are interpreted

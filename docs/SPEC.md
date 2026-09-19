@@ -100,6 +100,7 @@ Index: `(user_id, revoked_at)`.
 | longitude | numeric(9,6) | |
 | phone | varchar(32) | |
 | timezone | varchar(64) not null default `Asia/Almaty` | IANA name *(added — §11.2)* |
+| requires_confirmation | bool not null default false | bookings arrive `PENDING` *(§11.8)* |
 | is_active | bool not null default true | soft delete |
 | created_at / updated_at | timestamptz | |
 
@@ -160,6 +161,23 @@ outside the system).
 
 Index: `(barber_id, start_datetime)`.
 
+### shop_closures *(added — §11.12)*
+Whole-shop shutdowns: public holidays, a refit, the owner's holiday. Distinct
+from `barber_breaks`, which block one person; a holiday closes everyone at once,
+and one row per barber could drift apart.
+
+| column | type | notes |
+| --- | --- | --- |
+| id | uuid pk | |
+| shop_id | uuid fk barbershops on delete cascade | indexed |
+| start_date | date not null | shop-local calendar day |
+| end_date | date not null, `>= start_date` | **inclusive** |
+| reason | varchar(255) | |
+| created_at / updated_at | timestamptz | |
+
+Unique: `(shop_id, start_date, end_date)`. Stored as local dates, not instants:
+"closed on 1 January" is a statement about the shop's calendar.
+
 ### appointments
 | column | type | notes |
 | --- | --- | --- |
@@ -216,9 +234,11 @@ PENDING ──────► CONFIRMED ─────► COMPLETED    (barber 
    └───────────► CANCELLED
 ```
 
-- New appointments are created **`CONFIRMED`** by default. `PENDING` exists for
-  shops that opt into manual approval (`barbershops.requires_confirmation`,
-  deferred to a later phase — the enum value stays reserved).
+- New appointments are created **`CONFIRMED`** by default. A shop with
+  `requires_confirmation` set instead creates them `PENDING`, and staff accept
+  them via `PATCH /appointments/{id}/confirm`. A `PENDING` booking still holds
+  the slot — it is inside the exclusion constraint's filtered set — so a shop
+  cannot sell the same time twice while it decides.
 - `COMPLETED`, `CANCELLED`, `NO_SHOW` are terminal. Any other transition → `409`.
 - Reschedule keeps the same row, moves `start_time`/`end_time`, re-runs the same
   availability + exclusion-constraint path.
@@ -238,14 +258,16 @@ Algorithm:
    `service.shop_id == barber.shop_id`, and the pair exists in `barber_services`.
 2. Resolve the shop timezone; interpret `date` as a local calendar day, derive
    `[day_start_utc, day_end_utc)`.
-3. Load `working_hours` for that ISO weekday → local intervals → UTC intervals.
+3. If a `shop_closures` row covers that local day, return `[]` immediately —
+   no working hours matter when the doors are shut.
+4. Load `working_hours` for that ISO weekday → local intervals → UTC intervals.
    None → return `[]`.
-4. Subtract `barber_breaks` overlapping the day.
-5. Subtract `appointments` with status in (`PENDING`, `CONFIRMED`) overlapping the day.
-6. Walk each remaining free interval in `SLOT_STEP_MINUTES` (default 15) steps,
+5. Subtract `barber_breaks` overlapping the day.
+6. Subtract `appointments` with status in (`PENDING`, `CONFIRMED`) overlapping the day.
+7. Walk each remaining free interval in `SLOT_STEP_MINUTES` (default 15) steps,
    emitting a slot whenever `[t, t + duration)` fits entirely inside it.
-7. Drop slots starting before `now + MIN_BOOKING_LEAD_MINUTES` (default 30).
-8. Return UTC ISO-8601 instants plus the shop-local rendering.
+8. Drop slots starting before `now + MIN_BOOKING_LEAD_MINUTES` (default 30).
+9. Return UTC ISO-8601 instants plus the shop-local rendering.
 
 All interval math lives in one pure, dependency-free module
 (`app/services/availability.py`) so it is unit-testable without a database.
@@ -325,6 +347,13 @@ Base path `/api/v1`. Auth via `Authorization: Bearer <access_token>`.
 | POST | `/barbers/{id}/breaks` | the barber, shop owner, `ADMIN` — refuses if it collides with a booked appointment |
 | DELETE | `/breaks/{id}` | the barber, shop owner, `ADMIN` |
 
+### Closures
+| Method | Path | Access |
+| --- | --- | --- |
+| GET | `/barbershops/{id}/closures` | public |
+| POST | `/barbershops/{id}/closures` | shop owner, `ADMIN` |
+| DELETE | `/closures/{id}` | shop owner, `ADMIN` |
+
 ### Availability
 | Method | Path | Access |
 | --- | --- | --- |
@@ -339,6 +368,7 @@ Base path `/api/v1`. Auth via `Authorization: Bearer <access_token>`.
 | GET | `/barbershops/{id}/appointments` | shop owner, `ADMIN` — filter by date range, status, barber |
 | PATCH | `/appointments/{id}/cancel` | customer (before cutoff), barber, owner, admin |
 | PATCH | `/appointments/{id}/reschedule` | customer (before cutoff), barber, owner, admin |
+| PATCH | `/appointments/{id}/confirm` | barber, owner, admin — `PENDING` → `CONFIRMED` |
 | PATCH | `/appointments/{id}/complete` | barber, owner, admin |
 | PATCH | `/appointments/{id}/no-show` | barber, owner, admin |
 
@@ -463,12 +493,15 @@ Ambiguities and omissions in the original brief, and how we resolve them:
    average over the shop's active barbers, via a subquery (no third denormalized
    column).
 8. **`PENDING` vs `CONFIRMED` is undefined.** Bookings are `CONFIRMED` on
-   creation; `PENDING` is reserved for a future per-shop manual-approval flag.
+   creation unless the shop sets `requires_confirmation`, in which case they
+   arrive `PENDING` and staff confirm them. Pending bookings hold their slot.
 9. **No delete semantics.** Shops, barbers, and services soft-delete
    (`is_active=false`); deleting anything with future appointments is refused.
 10. **No cancellation policy.** Configurable cutoff, default 120 minutes, with
     staff able to override.
 11. **Slot granularity unspecified.** `SLOT_STEP_MINUTES`, default 15.
-12. **Day-off / holiday closures** are not modelled. Out of scope for v1 — a
-    whole-day `barber_break` covers the case.
+12. **Day-off / holiday closures.** Modelled as `shop_closures`, a range of
+    local calendar days closing the whole shop. A closed day short-circuits the
+    availability engine entirely, and a closure cannot be created over
+    appointments customers already hold.
 13. **Payments** are out of scope. `total_price` is a record, not a charge.

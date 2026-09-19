@@ -8,6 +8,7 @@ from app.api.v1 import (
     availability,
     barbers,
     barbershops,
+    closures,
     dashboard,
     reviews,
     schedule,
@@ -29,3 +30,5 @@ api_router.include_router(appointments.router)
 api_router.include_router(reviews.appointment_scoped)
 api_router.include_router(reviews.barber_scoped)
 api_router.include_router(dashboard.router)
+api_router.include_router(closures.shop_scoped)
+api_router.include_router(closures.router)

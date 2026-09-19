@@ -103,6 +103,18 @@ async def reschedule_appointment(
 
 
 @router.patch(
+    "/{appointment_id}/confirm",
+    response_model=AppointmentRead,
+    summary="Accept a pending booking",
+    description="Only for shops with `requires_confirmation` set. Barber, shop owner, or admin.",
+)
+async def confirm_appointment(
+    appointment_id: uuid.UUID, db: DbSession, user: CurrentUser
+) -> AppointmentRead:
+    return await booking.confirm_appointment(db, user, appointment_id)
+
+
+@router.patch(
     "/{appointment_id}/complete",
     response_model=AppointmentRead,
     summary="Mark an appointment completed",

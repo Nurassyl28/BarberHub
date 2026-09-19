@@ -112,10 +112,11 @@ async def stage() -> AsyncGenerator[Stage]:
         st.barber_id = barber.id
         st.service_id = service.id
         st.user_ids = [owner.id, barber_user.id, *[c.id for c in customers]]
-        # A round hour well in the future: on the grid, past the booking lead.
-        st.start = (datetime.now(UTC) + timedelta(days=30)).replace(
-            minute=0, second=0, microsecond=0
-        )
+        # A fixed hour, not "now rounded up": tests that add 45 and 90 minutes
+        # need room before the shift ends, and anchoring to the wall clock made
+        # this pass or fail depending on what time of day the suite ran.
+        future = (datetime.now(UTC) + timedelta(days=30)).date()
+        st.start = datetime(future.year, future.month, future.day, 6, 0, tzinfo=UTC)
 
     yield st
 

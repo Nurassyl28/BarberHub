@@ -69,6 +69,7 @@ async def create_appointment(
 ) -> AppointmentRead:
     moment = now or utcnow()
     barber, service = await _resolve_barber_and_service(db, payload.barber_id, payload.service_id)
+    shop = await db.get(Barbershop, barber.shop_id)
     start = payload.start_time
     end = start + timedelta(minutes=service.duration_minutes)
 
@@ -80,7 +81,14 @@ async def create_appointment(
         service_id=service.id,
         start_time=start,
         end_time=end,
-        status=AppointmentStatus.CONFIRMED,
+        # A shop that vets its bookings gets PENDING; everyone else gets a
+        # booking that is simply made. Either way the slot is held, so the shop
+        # cannot sell the same time twice while it decides.
+        status=(
+            AppointmentStatus.PENDING
+            if shop is not None and shop.requires_confirmation
+            else AppointmentStatus.CONFIRMED
+        ),
         # Snapshot: a later price change must not rewrite this booking or the
         # revenue reports built from it.
         total_price=service.price,
@@ -158,6 +166,30 @@ async def reschedule_appointment(
     return await get_appointment(db, user, appointment_id)
 
 
+async def confirm_appointment(
+    db: AsyncSession, user: User, appointment_id: uuid.UUID
+) -> AppointmentRead:
+    """Accept a booking a shop asked to vet first.
+
+    Only meaningful where `barbershops.requires_confirmation` is set; elsewhere
+    nothing is ever PENDING and this has nothing to act on.
+    """
+    appointment, is_staff = await _load_for_action(db, user, appointment_id)
+
+    if not is_staff:
+        raise ForbiddenError("Only the barber or the shop owner can confirm a booking")
+    if appointment.status is not AppointmentStatus.PENDING:
+        raise InvalidTransitionError(
+            f"A {appointment.status.value} appointment cannot be confirmed",
+            details={"status": appointment.status.value},
+        )
+
+    appointment.status = AppointmentStatus.CONFIRMED
+    await db.commit()
+    notifications.appointment_event("created", appointment_id)
+    return await get_appointment(db, user, appointment_id)
+
+
 async def complete_appointment(
     db: AsyncSession, user: User, appointment_id: uuid.UUID, *, now: datetime | None = None
 ) -> AppointmentRead:
@@ -182,7 +214,9 @@ async def _close_out(
 
     if not is_staff:
         raise ForbiddenError("Only the barber or the shop owner can close out an appointment")
-    if appointment.status is not AppointmentStatus.CONFIRMED:
+    # PENDING counts too: a customer who turns up to an unvetted booking was
+    # still served, and a no-show is still a no-show.
+    if appointment.status not in _ACTIVE_STATUSES:
         raise InvalidTransitionError(
             f"A {appointment.status.value} appointment cannot become {target.value}",
             details={"status": appointment.status.value},

@@ -13,6 +13,7 @@ from app.db.base import Base, TimestampMixin, UUIDMixin
 
 if TYPE_CHECKING:
     from app.models.barber import Barber
+    from app.models.closure import ShopClosure
     from app.models.service import Service
     from app.models.user import User
 
@@ -38,11 +39,20 @@ class Barbershop(UUIDMixin, TimestampMixin, Base):
     is_active: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default="true"
     )
+    #: When set, bookings arrive as PENDING and a member of staff must confirm
+    #: them. The slot is held either way — a pending booking blocks the time,
+    #: so a shop cannot double-sell it while deciding (see docs/SPEC.md §4).
+    requires_confirmation: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
 
     owner: Mapped["User"] = relationship(back_populates="owned_shops")
     barbers: Mapped[list["Barber"]] = relationship(
         back_populates="shop", cascade="all, delete-orphan"
     )
     services: Mapped[list["Service"]] = relationship(
+        back_populates="shop", cascade="all, delete-orphan"
+    )
+    closures: Mapped[list["ShopClosure"]] = relationship(
         back_populates="shop", cascade="all, delete-orphan"
     )
