@@ -1,0 +1,38 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: barberhub-postgres
+    environment:
+      POSTGRES_USER: barberhub
+      POSTGRES_PASSWORD: barberhub
+      POSTGRES_DB: barberhub
+    ports:
+      - "5434:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U barberhub -d barberhub"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: barberhub-redis
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: barberhub-mailhog
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # web UI
+
+volumes:
+  pgdata:

@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: barberhub
+          POSTGRES_PASSWORD: barberhub
+          POSTGRES_DB: barberhub
+        ports: ["5434:5432"]
+        options: >-
+          --health-cmd "pg_isready -U barberhub"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6380:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+
+    env:
+      ENVIRONMENT: test
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: 5434
+      REDIS_URL: redis://localhost:6380/0
+      JWT_SECRET_KEY: ci-secret-not-used-anywhere-real
+      # The suite must not depend on a broker or a shared limiter.
+      NOTIFICATIONS_ENABLED: "false"
+      RATE_LIMIT_ENABLED: "false"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - run: uv sync --frozen
+
+      - name: Lint
+        run: uv run ruff check app tests scripts
+
+      - name: Format check
+        run: uv run ruff format --check app tests scripts
+
+      - name: Type check
+        run: uv run mypy app scripts
+
+      - name: Migrate
+        run: uv run alembic upgrade head
+
+      - name: Schema matches the models
+        run: uv run alembic check
+
+      - name: Test
+        run: uv run pytest --cov=app --cov-report=term-missing --cov-fail-under=90
+
+      - name: Seed script runs
+        run: uv run python -m scripts.seed

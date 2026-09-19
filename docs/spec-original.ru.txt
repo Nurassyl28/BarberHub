@@ -1,0 +1,246 @@
+# BarberHub — система бронирования для барбершопов
+
+## Идея проекта
+
+Платформа, через которую клиент может:
+- найти барбершоп;
+- посмотреть мастеров;
+- посмотреть услуги;
+- увидеть свободное время;
+- записаться;
+- отменить или перенести запись;
+- оставить отзыв.
+
+Барбер может управлять своим расписанием, а владелец барбершопа — сотрудниками, услугами и статистикой.
+
+## Главные роли
+
+### CUSTOMER
+Может:
+- зарегистрироваться;
+- войти в аккаунт;
+- посмотреть барбершопы;
+- посмотреть мастеров;
+- посмотреть услуги;
+- посмотреть свободные временные слоты;
+- создать запись;
+- отменить запись;
+- перенести запись;
+- посмотреть историю записей;
+- оставить отзыв.
+
+### BARBER
+Может:
+- смотреть свое расписание;
+- выставлять рабочие часы;
+- добавлять break;
+- отмечать запись как completed;
+- смотреть информацию о клиенте;
+- смотреть свою статистику.
+
+### SHOP_OWNER
+Может:
+- создать барбершоп;
+- редактировать информацию;
+- добавлять и удалять барберов;
+- создавать услуги;
+- назначать услуги конкретным барберам;
+- управлять графиками;
+- смотреть все бронирования;
+- смотреть revenue/statistics.
+
+### ADMIN
+Может управлять всеми пользователями и барбершопами.
+
+## Основные сущности БД
+
+### users
+- id: UUID
+- first_name: varchar
+- last_name: varchar
+- email: varchar unique
+- phone: varchar
+- password_hash: varchar
+- role: enum
+- is_active: boolean
+- created_at: timestamp
+
+### barbershops
+- id: UUID
+- owner_id: FK users
+- name: varchar
+- description: text
+- address: varchar
+- city: varchar
+- latitude: decimal
+- longitude: decimal
+- phone: varchar
+- created_at: timestamp
+
+### barbers
+- id: UUID
+- user_id: FK users
+- shop_id: FK barbershops
+- bio: text
+- experience_years: integer
+- rating: decimal
+
+### services
+Примеры:
+- Haircut — 5000 ₸ — 45 min
+- Beard Trim — 3000 ₸ — 30 min
+- Haircut + Beard — 7000 ₸ — 60 min
+
+Fields:
+- id: UUID
+- shop_id: FK
+- name: varchar
+- description: text
+- duration_minutes: integer
+- price: decimal
+- is_active: boolean
+
+### barber_services
+Many-to-many:
+- barber_id
+- service_id
+
+### working_hours
+Например:
+Monday
+09:00 → 18:00
+
+Fields:
+- barber_id
+- weekday
+- start_time
+- end_time
+
+### barber_breaks
+- id
+- barber_id
+- start_datetime
+- end_datetime
+- reason
+
+### appointments
+- id: UUID
+- customer_id: FK users
+- barber_id: FK
+- service_id: FK
+- start_time: timestamp
+- end_time: timestamp
+- status: enum
+- total_price: decimal
+- created_at: timestamp
+
+Statuses:
+- PENDING
+- CONFIRMED
+- COMPLETED
+- CANCELLED
+- NO_SHOW
+
+### reviews
+- customer_id
+- barber_id
+- appointment_id
+- rating
+- comment
+- created_at
+
+## Основная backend-логика
+
+GET /barbers/{barber_id}/available-slots?date=2026-09-20
+
+Backend должен:
+1. получить working hours мастера;
+2. получить duration услуги;
+3. получить существующие appointments;
+4. получить breaks;
+5. вычислить свободные интервалы;
+6. вернуть только доступное время.
+
+Нужно защититься от двойного бронирования одного времени двумя клиентами.
+Использовать PostgreSQL transaction, overlap checks и при необходимости row locking / exclusion constraints.
+
+## API
+
+### Auth
+- POST /auth/register
+- POST /auth/login
+- POST /auth/refresh
+- POST /auth/logout
+- GET /auth/me
+
+### Barbershops
+- GET /barbershops
+- GET /barbershops/{id}
+- POST /barbershops
+- PATCH /barbershops/{id}
+- DELETE /barbershops/{id}
+
+### Barbers
+- GET /barbershops/{id}/barbers
+- GET /barbers/{id}
+- POST /barbershops/{id}/barbers
+- PATCH /barbers/{id}
+
+### Services
+- GET /barbershops/{id}/services
+- POST /barbershops/{id}/services
+- PATCH /services/{id}
+- DELETE /services/{id}
+
+### Availability
+- GET /barbers/{id}/available-slots
+
+### Appointments
+- POST /appointments
+- GET /appointments/me
+- GET /appointments/{id}
+- PATCH /appointments/{id}/cancel
+- PATCH /appointments/{id}/reschedule
+- PATCH /appointments/{id}/complete
+
+### Reviews
+- POST /appointments/{id}/review
+- GET /barbers/{id}/reviews
+
+## Search и фильтры
+- GET /barbershops?city=Almaty
+- GET /barbershops?service=Haircut
+- GET /barbershops?min_rating=4
+- GET /barbershops?sort=rating
+- Pagination: ?page=1&limit=20
+
+## Dashboard
+GET /dashboard/barbershop
+
+Возвращает:
+- total_appointments
+- today_appointments
+- completed_appointments
+- cancelled_appointments
+- monthly_revenue
+- most_popular_service
+- top_barber
+
+## Дополнительные функции
+- Email notifications
+- Appointment reminders
+- Background tasks
+
+## Что этот проект показывает
+- FastAPI REST API
+- JWT Authentication
+- RBAC
+- SQLAlchemy relationships
+- PostgreSQL
+- Complex scheduling
+- Transactions
+- Concurrency protection
+- Filtering
+- Pagination
+- Analytics
+- Testing
