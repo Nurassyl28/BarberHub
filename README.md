@@ -1,5 +1,9 @@
 # BarberHub
 
+[![CI](https://github.com/Nurassyl28/BarberHub/actions/workflows/ci.yml/badge.svg)](https://github.com/Nurassyl28/BarberHub/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/python-3.13-blue)
+![Coverage](https://img.shields.io/badge/coverage-97%25-brightgreen)
+
 Booking platform for barbershops — customers find shops, browse barbers and
 services, see genuinely free time slots, book, cancel, reschedule and review.
 Barbers manage their schedule; owners manage staff, services and revenue.
