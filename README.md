@@ -22,8 +22,13 @@ make install     # uv sync
 make up          # postgres + redis + mailhog
 make migrate     # alembic upgrade head
 make seed        # a demo shop with a month of history
-make dev         # http://localhost:8000/docs
+make dev         # http://localhost:8000
 ```
+
+| | |
+| --- | --- |
+| Web client | http://localhost:8000/app/ |
+| API docs | http://localhost:8000/docs |
 
 Seeded logins, all with password `Sup3rSecret!`:
 
@@ -35,7 +40,6 @@ Seeded logins, all with password `Sup3rSecret!`:
 
 | Service | URL |
 | --- | --- |
-| API docs | http://localhost:8000/docs |
 | Postgres | `localhost:5434` (`barberhub` / `barberhub`) |
 | Redis | `localhost:6380` |
 | MailHog UI | http://localhost:8025 |
@@ -62,6 +66,7 @@ make revision m="add appointments"
 | `app/api/v1/` | routers, one module per resource |
 | `app/services/` | business logic — availability, booking, ratings, analytics |
 | `app/workers/` | Celery app, tasks, email templates |
+| `frontend/` | the web client — three files, no build step |
 | `scripts/seed.py` | demo data |
 | `tests/unit/` | pure logic, no database |
 | `tests/integration/` | endpoints against a real PostgreSQL |
@@ -111,6 +116,21 @@ Neither can be created over appointments customers already hold.
 Stored as `TIMESTAMPTZ` in UTC. Working hours are wall-clock and are interpreted
 against `barbershops.timezone`; conversion happens only at the boundary.
 Timezone-naive input is rejected rather than guessed at.
+
+## The web client
+
+`frontend/` is a small customer-facing client served by the API process itself,
+so one command and one origin cover the whole thing and there is no CORS to
+configure. Three files, no framework and no build step: this is a Python
+repository, and a `node_modules` tree would cost more than it buys for six
+screens.
+
+The visual language borrows from two places on purpose. From Kaspi: one strong
+accent colour doing all the work, content in white cards on a grey ground,
+large tap targets, and the next action always visible rather than scrolled
+away. From Apple's HIG: clarity before decoration, generous whitespace, the
+system font stack, a 44px minimum touch target, restrained depth, and a dark
+mode that is a real palette rather than an inversion.
 
 ## Testing
 

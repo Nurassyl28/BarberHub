@@ -2,10 +2,13 @@
 
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.api.v1.router import api_router
 from app.core.config import settings
@@ -47,11 +50,31 @@ def create_app() -> FastAPI:
     register_exception_handlers(app)
     app.include_router(api_router, prefix=settings.API_V1_PREFIX)
 
+    _mount_frontend(app)
+
     @app.get("/health", tags=["meta"], summary="Liveness probe")
     async def health() -> dict[str, Any]:
         return {"status": "ok", "environment": settings.ENVIRONMENT, "version": "0.1.0"}
 
     return app
+
+
+def _mount_frontend(app: FastAPI) -> None:
+    """Serve the client from the API process.
+
+    One command and one origin for the whole thing: no CORS to configure, no
+    second server to remember to start. The directory is optional so a
+    deployment that only wants the API can simply not ship it.
+    """
+    directory = Path(__file__).resolve().parent.parent / "frontend"
+    if not directory.is_dir():
+        return
+
+    app.mount("/app", StaticFiles(directory=directory, html=True), name="frontend")
+
+    @app.get("/", include_in_schema=False)
+    async def _root() -> RedirectResponse:
+        return RedirectResponse("/app/")
 
 
 app = create_app()

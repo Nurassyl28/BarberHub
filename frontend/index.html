@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#f14635" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
+  <title>BarberHub</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💈</text></svg>" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar__inner">
+      <a class="brand" href="#/">
+        <span class="brand__mark" aria-hidden="true">B</span>
+        BarberHub
+      </a>
+      <span class="topbar__spacer"></span>
+      <div id="account"></div>
+    </div>
+  </header>
+
+  <main class="shell" id="view" aria-live="polite">
+    <div class="skeleton"></div>
+    <div class="skeleton"></div>
+  </main>
+
+  <nav class="tabbar" aria-label="Main">
+    <button class="tabbar__item" data-route="#/">
+      <span class="tabbar__icon" aria-hidden="true">🔎</span>Find
+    </button>
+    <button class="tabbar__item" data-route="#/bookings">
+      <span class="tabbar__icon" aria-hidden="true">📅</span>Bookings
+    </button>
+    <button class="tabbar__item" data-route="#/account">
+      <span class="tabbar__icon" aria-hidden="true">👤</span>Account
+    </button>
+  </nav>
+
+  <script src="app.js"></script>
+</body>
+</html>
